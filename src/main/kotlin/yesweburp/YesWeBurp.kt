@@ -2,6 +2,7 @@ package yesweburp
 
 import burp.IBurpExtender
 import burp.IBurpExtenderCallbacks
+import yesweburp.config.UserAgentListener
 import yesweburp.ui.YesWeBurpTab
 import java.io.PrintWriter
 
@@ -15,6 +16,7 @@ open class YesWeBurp : IBurpExtender {
 
         callbacks.setExtensionName("YesWeBurp")
         callbacks.addSuiteTab(YesWeBurpTab())
+        callbacks.registerHttpListener(UserAgentListener)
 
     }
 

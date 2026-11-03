@@ -40,6 +40,8 @@ data class BurpConfigResponse(
 
 
 object BurpConfig {
+    const val RULE_COMMENT_SUFFIX = " - YesWeBurp"
+
     val mapper: ObjectMapper = with(jacksonObjectMapper()) {
         configure(
             DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
@@ -71,5 +73,12 @@ object BurpConfig {
             config.proxy!!.match_replace_rules += arrayOf(rule)
         }
         setConfigAsJson(config)
+    }
+
+    fun yesWeBurpHeaderRules(): List<BurpReplaceRule> {
+        val config: BurpConfigResponse = getConfigAsJson("proxy.match_replace_rules")
+        return config.proxy!!.match_replace_rules.filter {
+            it.enabled && it.rule_type == "request_header" && it.comment.endsWith(RULE_COMMENT_SUFFIX)
+        }
     }
 }

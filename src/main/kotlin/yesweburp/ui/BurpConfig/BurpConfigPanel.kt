@@ -186,7 +186,7 @@ class BurpConfigPanel(program: Program) : ColumnPanel() {
                 uaTable.minimumSize = uaTable.preferredSize
                 uaTable.preferredScrollableViewportSize = uaTable.preferredSize
                 center = ScrollPane(uaTable)
-                bottom = Button("Add match/replace rule") {
+                bottom = Button("Add match/replace rule (all tools)") {
                     onClick {
                         val match = uaTable.model.getValueAt(0, 0) as String;
                         val replace = uaTable.model.getValueAt(0, 1) as String;
@@ -194,7 +194,7 @@ class BurpConfigPanel(program: Program) : ColumnPanel() {
                             rule_type = "request_header",
                             string_match = match,
                             string_replace = replace,
-                            comment = "${program.slug} - YesWeBurp"
+                            comment = "${program.slug}${BurpConfig.RULE_COMMENT_SUFFIX}"
                         ))
 
                     }
