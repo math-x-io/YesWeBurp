@@ -4,52 +4,21 @@ import yesweburp.api.AuthMethod
 import kotlin.reflect.KProperty
 
 
-open class PersistentString(private val key: String, private val default: String = "") {
-    operator fun getValue(thisRef: Any?, property: KProperty<*>): String {
+class Persistent<T>(private val key: String, private val default: T, private val parse: (String) -> T) {
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
         val saved = callbacks.loadExtensionSetting(key)
-        if (saved.isNullOrEmpty()) {
-            return default
-        }
-        return saved
+        return if (saved.isNullOrEmpty()) default else parse(saved)
     }
 
-    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: String) {
-        callbacks.saveExtensionSetting(key, value)
-    }
-}
-
-class PersistentInt(private val key: String, private val default: Int = 0) {
-    operator fun getValue(thisRef: Any?, property: KProperty<*>): Int {
-        val saved = callbacks.loadExtensionSetting(key)
-        if (saved.isNullOrEmpty()) {
-            return default
-        }
-        return saved.toInt()
-    }
-
-    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
-        callbacks.saveExtensionSetting(key, value.toString())
-    }
-}
-
-class PersistentBoolean(private val key: String, private val default: Boolean = false) {
-    operator fun getValue(thisRef: Any?, property: KProperty<*>): Boolean {
-        val saved = callbacks.loadExtensionSetting(key)
-        if (saved.isNullOrEmpty()) {
-            return default
-        }
-        return saved.equals("true")
-    }
-
-    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Boolean) {
+    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
         callbacks.saveExtensionSetting(key, value.toString())
     }
 }
 
 object Settings {
-    var userEmail: String by PersistentString("USER_EMAIL")
-    var userPassword: String by PersistentString("USER_PASSWORD")
-    var rememberPassword: Boolean by PersistentBoolean("REMEMBER_PASSWORD")
-    var authMethod: String by PersistentString("AUTH_METHOD", AuthMethod.ANONYMOUS.label)
-    var favoriteTab: Int by PersistentInt("FAVORITE_TAB", 0)
+    var userEmail by Persistent("USER_EMAIL", "") { it }
+    var userPassword by Persistent("USER_PASSWORD", "") { it }
+    var rememberPassword by Persistent("REMEMBER_PASSWORD", false) { it == "true" }
+    var authMethod by Persistent("AUTH_METHOD", AuthMethod.ANONYMOUS.label) { it }
+    var favoriteTab by Persistent("FAVORITE_TAB", 0) { it.toInt() }
 }

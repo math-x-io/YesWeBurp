@@ -21,7 +21,3 @@ open class YesWeBurp : IBurpExtender {
     }
 
 }
-
-/*
-
-* */

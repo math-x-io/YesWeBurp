@@ -5,139 +5,153 @@ import kotlinx.coroutines.launch
 import swinger.*
 import yesweburp.Events.programsLoaded
 import yesweburp.Settings
-import yesweburp.VERSION
 import yesweburp.api.API
 import yesweburp.api.AuthMethod
-import yesweburp.ui.DisabledTextField
 import yesweburp.ui.Padding
+import yesweburp.ui.Theme
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.Font
 import java.awt.GridBagConstraints
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import javax.swing.Box.createHorizontalGlue
-import javax.swing.JTextField
+import javax.swing.JLabel
+import javax.swing.SwingUtilities
 
 class APIPanel : GridBagPanel() {
+    private val labels = mutableMapOf<Component, Component>()
+
     init {
         alignmentX = LEFT_ALIGNMENT
-        addTitleBorder("API")
+        addPaddingBorder(10)
+        addTitleBorder("YesWeHack account")
         val auth = AuthMethod.fromValue(Settings.authMethod)
 
-        val email = TextField(Settings.userEmail) {
-            isEnabled = auth.requireEmail
-        }
-        val password = PasswordField(Settings.userPassword) {
-            isEnabled = auth.requirePassword
-        }
-        val otp = TextField {
-            isEnabled = auth.requireOTP
-        }
+        val email = TextField(Settings.userEmail) { placeholder = "hunter@example.com" }
+        val password = PasswordField(Settings.userPassword)
+        val otp = TextField { placeholder = "000000" }
         val token = PasswordField {
-            isEnabled = auth.requireToken
+            toolTipText = "Bearer token of a logged-in yeswehack.com session. Never saved."
+        }
+        val tokenHint = Label("Bearer token of a logged-in yeswehack.com session, never saved.") {
+            foreground = Theme.secondary
+            font = Theme.font(-1f)
         }
         val rememberPassword = CheckBox {
+            text = "Keep a plaintext copy in Burp settings"
             isSelected = Settings.rememberPassword
-            isEnabled = auth.requirePassword
         }
-        val errorMsg = DisabledTextField()
+        val status = Label("Programs not loaded yet.") {
+            foreground = Theme.secondary
+        }
 
-        errorMsg.isVisible = false
+        fun showFields(method: AuthMethod) {
+            setRowVisible(email, method.requireEmail)
+            setRowVisible(password, method.requirePassword)
+            setRowVisible(rememberPassword, method.requirePassword)
+            setRowVisible(otp, method.requireOTP)
+            setRowVisible(token, method.requireToken)
+            setRowVisible(tokenHint, method.requireToken)
+            fitWidth()
+        }
+
         val authMethodList = ComboBox(AuthMethod.labels()) {
             selectedIndex = values.indexOf(auth.label)
-            onChange { selected ->
-                val method = AuthMethod.fromValue(selected)
-                email.isEnabled = method.requireEmail
-                password.isEnabled = method.requirePassword
-                rememberPassword.isEnabled = method.requirePassword
-                otp.isEnabled = method.requireOTP
-                token.isEnabled = method.requireToken
-            }
+            onChange { showFields(AuthMethod.fromValue(it)) }
+        }
+
+        fun setStatus(text: String, color: java.awt.Color) {
+            status.text = text
+            status.foreground = color
+            fitWidth()
         }
 
         val fetchButton = Button("Fetch programs") {
-            addActionListener {
-                val authEmail = email.text
-                val authPassword = password.text
-                val authOTP = otp.text
-                val authToken = token.text
-                val authMethod = AuthMethod.fromValue(authMethodList.selected)
-                Settings.userEmail = authEmail
-                if (rememberPassword.isSelected) {
-                    Settings.rememberPassword = true
-                    Settings.userPassword = authPassword
-                } else {
-                    Settings.rememberPassword = false
-                    Settings.userPassword = ""
-                    password.text = ""
-                }
-                Settings.authMethod = authMethod.label
-                otp.text = ""
+            font = font.deriveFont(Font.BOLD)
+        }
+        fetchButton.onClick {
+            val authEmail = email.text
+            val authPassword = password.text
+            val authOTP = otp.text
+            val authToken = token.text
+            val authMethod = AuthMethod.fromValue(authMethodList.selected)
+            Settings.userEmail = authEmail
+            if (rememberPassword.isSelected) {
+                Settings.rememberPassword = true
+                Settings.userPassword = authPassword
+            } else {
+                Settings.rememberPassword = false
+                Settings.userPassword = ""
+                password.text = ""
+            }
+            Settings.authMethod = authMethod.label
+            otp.text = ""
 
+            fetchButton.isEnabled = false
+            fetchButton.text = "Fetching…"
+            setStatus("Fetching programs, this can take a few seconds…", Theme.secondary)
 
-                errorMsg.isVisible = false
-                revalidate()
-                this@APIPanel.maximumSize = Dimension(600, this@APIPanel.preferredSize.height)
-
-                GlobalScope.launch {
-                    try {
-                        when (authMethod) {
-                            AuthMethod.ANONYMOUS -> API.auth()
-                            AuthMethod.EMAIL_PASSWORD -> API.auth(authEmail, authPassword)
-                            AuthMethod.EMAIL_PASSWORD_OTP -> API.auth(authEmail, authPassword, authOTP)
-                            AuthMethod.TOKEN -> API.auth(authToken)
-                        }
-
-                        isEnabled = false
-                        programsLoaded.listenOnce {
-                            isEnabled = true
-                        }
-                        API.fetchPrograms()
-                    } catch (e: Exception) {
-                        isEnabled = true
-                        errorMsg.text = e.message ?: ""
-                        errorMsg.isVisible = true
-                        revalidate()
-                        this@APIPanel.maximumSize = Dimension(600, this@APIPanel.preferredSize.height)
+            GlobalScope.launch {
+                try {
+                    when (authMethod) {
+                        AuthMethod.ANONYMOUS -> API.auth()
+                        AuthMethod.EMAIL_PASSWORD -> API.auth(authEmail, authPassword)
+                        AuthMethod.EMAIL_PASSWORD_OTP -> API.auth(authEmail, authPassword, authOTP)
+                        AuthMethod.TOKEN -> API.auth(authToken)
+                    }
+                    API.fetchPrograms()
+                } catch (e: Exception) {
+                    SwingUtilities.invokeLater {
+                        fetchButton.isEnabled = true
+                        fetchButton.text = "Fetch programs"
+                        setStatus(e.message ?: "Unknown error", Theme.danger)
                     }
                 }
             }
         }
 
+        programsLoaded.listen { programs ->
+            fetchButton.isEnabled = true
+            fetchButton.text = "Fetch programs"
+            val privateCount = programs.count { !it.public }
+            val time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+            setStatus("${programs.size} programs loaded ($privateCount private) at $time.", Theme.success)
+        }
 
-
-        addSetting("Version", TextField(VERSION) {
-            isEditable = false
-            isOpaque = true
-            isRequestFocusEnabled = false
-            horizontalAlignment = JTextField.CENTER
-        })
-        addSetting("API URL", DisabledTextField("https://api.yeswehack.com"))
         addSetting("Authentication", authMethodList)
         addSetting("Email", email)
         addSetting("Password", password)
+        addSetting(null, rememberPassword)
         addSetting("OTP", otp)
-        addSetting("Remember password", rememberPassword)
         addSetting("Access token", token)
+        addSetting(null, tokenHint)
         addSetting(null, fetchButton)
-        add(
-            errorMsg,
-            gridX = 0,
-            gridWidth= 2,
-            weightX = 2.0,
-            fill = GridBagConstraints.HORIZONTAL,
-            insets = Padding(5),
-            anchor = GridBagConstraints.WEST
-        )
-        maximumSize = Dimension(600, preferredSize.height)
+        addSetting(null, status)
+        showFields(auth)
     }
 
+    private fun fitWidth() {
+        revalidate()
+        maximumSize = Dimension(640, preferredSize.height)
+    }
+
+    private fun setRowVisible(setting: Component, visible: Boolean) {
+        setting.isVisible = visible
+        labels[setting]?.isVisible = visible
+    }
 
     private fun addSetting(label: String?, setting: Component) {
-        val left = if (label == null) createHorizontalGlue() else Label("$label :")
+        val left = if (label == null) createHorizontalGlue() else Label(label) {
+            horizontalAlignment = JLabel.RIGHT
+        }
+        labels[setting] = left
         add(
             left,
             gridX = 0,
             insets = Padding(5),
-            anchor = GridBagConstraints.WEST,
+            anchor = GridBagConstraints.EAST,
+            fill = GridBagConstraints.HORIZONTAL,
         )
         add(
             setting,
@@ -148,5 +162,4 @@ class APIPanel : GridBagPanel() {
             anchor = GridBagConstraints.WEST
         )
     }
-
 }

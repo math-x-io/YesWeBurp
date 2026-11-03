@@ -31,7 +31,7 @@ object UserAgentListener : IHttpListener {
         headers.mapIndexed { i, line ->
             if (i == 0) return@mapIndexed line
             rules.fold(line) { acc, (regex, replace) ->
-)                val appended = replace.substringAfterLast("$1", "")
+                val appended = replace.substringAfterLast("$1", "")
                 if (appended.isNotEmpty() && acc.endsWith(appended)) acc else regex.replace(acc, replace)
             }
         }

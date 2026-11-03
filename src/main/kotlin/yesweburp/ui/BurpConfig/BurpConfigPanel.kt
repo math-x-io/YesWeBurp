@@ -27,10 +27,8 @@ fun hostToRegex(s: String): String {
     return reg
 }
 
-// shortcut: app store listings are not web targets; hardcoded list, extend if programs link other stores
 private val storeHosts = setOf("play.google.com", "apps.apple.com", "itunes.apple.com", "appgallery.huawei.com")
 
-// null when the text is not a host/URL (free text, store link): no Burp rule is proposed for it
 fun guessRule(s: String): BurpScopeRule? {
     val reg = arrayOf(
             "^(?:(?<protocol>https?):\\/\\/)?",

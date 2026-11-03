@@ -2,22 +2,18 @@ package  swinger
 
 import java.awt.*
 import java.awt.event.ItemEvent
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import javax.swing.*
 import javax.swing.border.Border
 import javax.swing.border.EtchedBorder
 import javax.swing.border.TitledBorder
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import kotlin.reflect.KProperty
-
-
-interface IPanel
-
 
 
 class Button(text: String, build: (Button.() -> Unit)? = null) : JButton(text) {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
     fun onClick(action: () -> Unit) {
@@ -29,7 +25,7 @@ class Button(text: String, build: (Button.() -> Unit)? = null) : JButton(text) {
 
 open class Panel(build: (Panel.() -> Unit)? = null) : JPanel() {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
     fun addBorder(b: Border) {
@@ -57,7 +53,7 @@ open class Panel(build: (Panel.() -> Unit)? = null) : JPanel() {
 
 class ScrollPane(component: Component, build: (ScrollPane.() -> Unit)? = null) : JScrollPane(component) {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
@@ -95,7 +91,7 @@ open class BorderPanel(build: (BorderPanel.() -> Unit)? = null) : Panel() {
 
     init {
         layout = BorderLayout()
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
@@ -104,13 +100,13 @@ open class BorderPanel(build: (BorderPanel.() -> Unit)? = null) : Panel() {
 open class GridPanel(rows: Int, cols: Int, build: (GridPanel.() -> Unit)? = null) : Panel() {
     init {
         layout = GridLayout(rows, cols)
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
 open class TabbedPane(build: (TabbedPane.() -> Unit)? = null) : JTabbedPane() {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
@@ -118,7 +114,7 @@ open class GridBagPanel(build: (GridBagPanel.() -> Unit)? = null) : Panel() {
 
     init {
         layout = GridBagLayout()
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
     fun add(
@@ -157,14 +153,14 @@ open class GridBagPanel(build: (GridBagPanel.() -> Unit)? = null) : Panel() {
 open class ColumnPanel(build: (ColumnPanel.() -> Unit)? = null) : Panel() {
     init {
         layout = BoxLayout(this, BoxLayout.PAGE_AXIS)
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
 class SplitPanel(direction: Int, build: (SplitPanel.() -> Unit)? = null) : JSplitPane(direction) {
 
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
     fun withFixedDivider(action: SplitPanel.() -> Unit) {
@@ -175,14 +171,32 @@ class SplitPanel(direction: Int, build: (SplitPanel.() -> Unit)? = null) : JSpli
 }
 
 class TextField(text: String? = null, build: (TextField.() -> Unit)? = null) : JTextField(text) {
+    var placeholder: String? = null
+
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
-    fun onChange(action: (String) -> Unit) {
-        addActionListener {
-            action(text)
+    override fun paintComponent(g: Graphics) {
+        super.paintComponent(g)
+        val hint = placeholder
+        if (hint != null && text.isEmpty()) {
+            val g2 = g.create() as Graphics2D
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g2.color = disabledTextColor
+            g2.font = font
+            val fm = g2.fontMetrics
+            g2.drawString(hint, insets.left, (height - fm.height) / 2 + fm.ascent)
+            g2.dispose()
         }
+    }
+
+    fun onInput(action: (String) -> Unit) {
+        document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = action(text)
+            override fun removeUpdate(e: DocumentEvent?) = action(text)
+            override fun changedUpdate(e: DocumentEvent?) = action(text)
+        })
     }
 }
 
@@ -192,19 +206,19 @@ class PasswordField(text: String? = null, build: (PasswordField.() -> Unit)? = n
     }
 
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
 class Label(text: String? = null, build: (Label.() -> Unit)? = null) : JLabel(text) {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
 open class ComboBox<T>(val values: Array<T>, build: (ComboBox<T>.() -> Unit)? = null) : JComboBox<T>(values) {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
     val selected: T get() = selectedItem as T
@@ -218,7 +232,14 @@ open class ComboBox<T>(val values: Array<T>, build: (ComboBox<T>.() -> Unit)? = 
     }
 }
 
-class SListModel<T>(var values: List<T>) : AbstractListModel<T>() {
+class SListModel<T>(values: List<T>) : AbstractListModel<T>() {
+    var values: List<T> = values
+        set(value) {
+            val oldSize = field.size
+            field = value
+            fireContentsChanged(this, 0, maxOf(oldSize, value.size))
+        }
+
     override fun getSize(): Int {
         return values.size
     }
@@ -231,34 +252,32 @@ class SListModel<T>(var values: List<T>) : AbstractListModel<T>() {
 open class SList<T>(private val values: List<T>, build: (SList<T>.() -> Unit)? = null) : JList<T>() {
     init {
         model = SListModel(values)
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 
     fun applyFilter(filter: (T) -> Boolean) {
-        (model as SListModel).values = values.filter(filter)
+        show(values.filter(filter))
+    }
+
+    fun show(items: List<T>) {
+        val selected = selectedValue
+        (model as SListModel<T>).values = items
+        if (selected != null && selected in items) setSelectedValue(selected, true) else clearSelection()
         revalidate()
         repaint()
     }
 
     fun onSelect(action: (T) -> Unit) {
-        addMouseListener(object : MouseAdapter(){
-            override fun mouseClicked(e: MouseEvent?) {
-                if (!valueIsAdjusting) {
-                    action(selectedValue)
-                }
-            }
-        })
+        addListSelectionListener { e ->
+            val value = selectedValue
+            if (!e.valueIsAdjusting && value != null) action(value)
+        }
     }
 }
 
 open class CheckBox(build: (CheckBox.() -> Unit)? = null) : JCheckBox() {
     init {
-        if (build != null) build(this)
+        build?.invoke(this)
     }
 }
 
-class Frame(build: (Frame.() -> Unit)? = null) : JFrame() {
-    init {
-        if (build != null) build(this)
-    }
-}

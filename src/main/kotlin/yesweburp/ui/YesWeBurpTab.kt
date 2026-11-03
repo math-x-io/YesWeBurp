@@ -26,6 +26,7 @@ class YesWeBurpTab : ITab {
             }
             programTab = ProgramTab(programs)
             tab.add("Programs", programTab)
+            tab.selectedComponent = programTab
         }
         callbacks.customizeUiComponent(tab)
         return tab

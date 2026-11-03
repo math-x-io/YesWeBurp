@@ -10,7 +10,10 @@ import yesweburp.Events.programsLoaded
 import yesweburp.VERSION
 import yesweburp.callbacks
 import yesweburp.helpers
+import yesweburp.stderr
+import java.net.URL
 import java.util.stream.Collectors
+import javax.swing.SwingUtilities
 
 
 object API {
@@ -30,45 +33,28 @@ object API {
         val responseInfo = helpers.analyzeResponse(response)
         val responseBody = response.slice(responseInfo.bodyOffset until response.size).toByteArray()
         if (responseInfo.statusCode.toInt() != 200) {
-            if (responseInfo.headers.any { it == "Content-Type: application/json" }) {
-                val err: APIError = jsonMapper.readValue(responseBody)
-                throw APIException(err.message)
-            }
-            throw APIException("API Error ${responseInfo.statusCode}")
+            val isJson = responseInfo.headers.any { it.lowercase().startsWith("content-type: application/json") }
+            val message = if (isJson) runCatching { jsonMapper.readValue<APIError>(responseBody).message }.getOrNull() else null
+            throw APIException(message ?: "API Error ${responseInfo.statusCode}")
         }
         return responseBody
     }
 
-    private inline fun <reified T> get(path: String): T {
-        val headers = mutableListOf(
-            "GET $path HTTP/1.1",
+    private fun request(method: String, path: String, body: ByteArray? = null): ByteArray {
+        val headers = listOfNotNull(
+            "$method $path HTTP/1.1",
             "Host: $host",
-            "User-Agent: YesWeBurp $VERSION"
+            body?.let { "Content-Type: application/json" },
+            "User-Agent: YesWeBurp $VERSION",
+            token?.let { "Authorization: Bearer $it" }
         )
-        if (token is String) {
-            headers.add("Authorization: Bearer $token")
-        }
-        val request = helpers.buildHttpMessage(headers, byteArrayOf())
-        val response = sendRequest(request)
-        return jsonMapper.readValue(response)
+        return sendRequest(helpers.buildHttpMessage(headers, body ?: byteArrayOf()))
     }
 
-    private inline fun <reified TForm, reified TResp> post(path: String, form: TForm): TResp {
-        val body = jsonMapper.writeValueAsBytes(form)
-        val headers = mutableListOf(
-            "POST $path HTTP/1.1",
-            "Host: $host",
-            "Content-Type: application/json",
-            "User-Agent: YesWeBurp $VERSION"
-        )
-        if (token is String) {
-            headers.add("Authorization: Bearer $token")
+    private inline fun <reified T> get(path: String): T = jsonMapper.readValue(request("GET", path))
 
-        }
-        val request = helpers.buildHttpMessage(headers, body)
-        val response = sendRequest(request)
-        return jsonMapper.readValue(response)
-    }
+    private inline fun <reified TResp> post(path: String, form: Any): TResp =
+        jsonMapper.readValue(request("POST", path, jsonMapper.writeValueAsBytes(form)))
 
     fun auth() {
         token = null
@@ -106,10 +92,27 @@ object API {
         do {
             val response: Page<ShortProgram> = get("/programs?page=$page")
             data += response.items.parallelStream()
-                .map { get<Program>("/programs/${it.slug}").copy(public = it.public) }
+                .map { fetchProgram(it) }
                 .collect(Collectors.toList())
+                .filterNotNull()
         } while (page++ < response.pagination.nb_pages)
         val programs = data.sortedBy(Program::title)
-        programsLoaded.fire(programs)
+        SwingUtilities.invokeLater { programsLoaded.fire(programs) }
+    }
+
+    private fun fetchProgram(short: ShortProgram): Program? = try {
+        get<Program>("/programs/${short.slug}").copy(public = short.public)
+    } catch (e: Exception) {
+        stderr.println("YesWeBurp: skipped program ${short.slug}: ${e.message}")
+        null
+    }
+
+    fun fetchImage(url: String): ByteArray? {
+        val u = URL(url)
+        val service = helpers.buildHttpService(u.host, if (u.port == -1) u.defaultPort else u.port, u.protocol == "https")
+        val response = callbacks.makeHttpRequest(service, helpers.buildHttpRequest(u)).response ?: return null
+        val info = helpers.analyzeResponse(response)
+        if (info.statusCode.toInt() != 200) return null
+        return response.copyOfRange(info.bodyOffset, response.size)
     }
 }

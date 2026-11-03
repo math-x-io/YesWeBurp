@@ -1,27 +1,30 @@
 package yesweburp.ui.programs
 
-import swinger.ColumnPanel
+import swinger.BorderPanel
+import swinger.Label
 import swinger.SplitPanel
 import yesweburp.api.Program
+import yesweburp.ui.Theme
+import javax.swing.JLabel
 import javax.swing.JSplitPane
 
 
-class ProgramTab(programs: List<Program>) : ColumnPanel() {
-    private val splitPanel: SplitPanel = SplitPanel(JSplitPane.HORIZONTAL_SPLIT) {
+class ProgramTab(programs: List<Program>) : BorderPanel() {
+    private val splitPanel = SplitPanel(JSplitPane.HORIZONTAL_SPLIT) {
         isOneTouchExpandable = true
-        leftComponent = ProgramsListPanel(programs)
-        if (programs.isNotEmpty()){
-            rightComponent = ProgramInfoPanel(programs.first())
+        dividerLocation = 360
+        rightComponent = Label(if (programs.isEmpty()) "No program available" else "Select a program") {
+            horizontalAlignment = JLabel.CENTER
+            foreground = Theme.secondary
         }
     }
 
     init {
-        add(splitPanel)
-        Events.programSelected.listen {
-            showProgramInfo(it)
-        }
+        val listPanel = ProgramsListPanel(programs, ::showProgramInfo)
+        splitPanel.leftComponent = listPanel
+        center = splitPanel
+        listPanel.selectFirst()
     }
-
 
     private fun showProgramInfo(program: Program) {
         splitPanel.withFixedDivider {
