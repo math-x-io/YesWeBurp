@@ -27,29 +27,34 @@ fun hostToRegex(s: String): String {
     return reg
 }
 
-fun guessScope(scope: Scope): BurpScopeRule? {
-    if (scope.scope_type == "ip-address") {
-        return BurpScopeRule(host = scope.scope)
-    }
+// shortcut: app store listings are not web targets; hardcoded list, extend if programs link other stores
+private val storeHosts = setOf("play.google.com", "apps.apple.com", "itunes.apple.com", "appgallery.huawei.com")
 
+// null when the text is not a host/URL (free text, store link): no Burp rule is proposed for it
+fun guessRule(s: String): BurpScopeRule? {
     val reg = arrayOf(
             "^(?:(?<protocol>https?):\\/\\/)?",
             "(?<host>[^/:?#\\s]+)",
             "(?::(?<port>(?:\\d+|\\(?(?:\\d+\\|)*\\d+\\))))?",
             "(?<path>\\/.*)?",
     ).joinToString("")
-    val match = Regex(reg).matchEntire(scope.scope)
+    val groups = Regex(reg).matchEntire(s.trim())?.groups ?: return null
+    val host = groups[2]!!.value
+    if ('.' !in host || host.lowercase() in storeHosts) return null
 
-    if (match?.groups != null) {
-        val rule = BurpScopeRule()
-        val groups = match.groups
-        rule.protocol = groups[1]?.value ?: "any"
-        rule.host = hostToRegex(groups[2]?.value ?: "")
-        rule.port = groups[3]?.value ?: ""
-        rule.file = groups[4]?.value ?: ""
-        return rule
+    val rule = BurpScopeRule()
+    rule.protocol = groups[1]?.value ?: "any"
+    rule.host = hostToRegex(host)
+    rule.port = groups[3]?.value ?: ""
+    rule.file = groups[4]?.value ?: ""
+    return rule
+}
+
+fun guessScope(scope: Scope): BurpScopeRule? {
+    if (scope.scope_type == "ip-address") {
+        return BurpScopeRule(host = scope.scope)
     }
-    return null
+    return guessRule(scope.scope)
 }
 
 
@@ -75,9 +80,8 @@ class BurpConfigWindow(program: Program) : JFrame("Configure Burp for ${program.
 
 class BurpConfigPanel(program: Program) : ColumnPanel() {
 
-    class ScopeTable(scopes: List<Scope>) : JTable() {
+    class ScopeTable(private val scopeRuleInfos: List<Pair<String, BurpScopeRule?>>) : JTable() {
         private val columns = arrayOf("Program rule", "Protocol", "Host", "Port", "File")
-        private val scopeRuleInfos: List<Pair<String, BurpScopeRule?>> = scopes.map { Pair(it.scope, guessScope(it)) }
 
 
         init {
@@ -107,7 +111,7 @@ class BurpConfigPanel(program: Program) : ColumnPanel() {
         }
 
         fun getSelectedRules(): List<BurpScopeRule> {
-            return selectedRows.map { rowIdx ->
+            return selectedRows.filter { (model.getValueAt(it, 2) as String).isNotBlank() }.map { rowIdx ->
                 BurpScopeRule(
                         enabled = true,
                         protocol = model.getValueAt(rowIdx, 1) as String,
@@ -121,27 +125,34 @@ class BurpConfigPanel(program: Program) : ColumnPanel() {
     }
 
 
-    init {
-        addPaddingBorder(top = 5)
-        val scopes = BorderPanel {
+    private fun scopeBox(title: String, table: ScopeTable, action: String, apply: (List<BurpScopeRule>) -> Unit) =
+        BorderPanel {
             vgap = 5
-            addTitleBorder("Scopes")
-            val table = ScopeTable(program.scopes)
-
-            val addButton = Button("Add to scope (0)") {
+            addTitleBorder(title)
+            val addButton = Button("$action (0)") {
                 isEnabled = false
                 onClick {
-                    BurpConfig.addTargetScope(table.getSelectedRules())
+                    apply(table.getSelectedRules())
                 }
             }
             table.selectionModel.addListSelectionListener {
-                addButton.text = "Add to scope (${table.selectedRows.size})"
-                addButton.isEnabled = table.selectedRows.isNotEmpty()
+                val count = table.getSelectedRules().size
+                addButton.text = "$action ($count)"
+                addButton.isEnabled = count > 0
             }
             center = ScrollPane(table)
             bottom = addButton
             preferredSize = Dimension(800, preferredSize.height)
         }
+
+    init {
+        addPaddingBorder(top = 5)
+        val scopes = scopeBox(
+            "Scopes",
+            ScopeTable(program.scopes.map { Pair(it.scope, guessScope(it)) }),
+            "Add to scope",
+            BurpConfig::addTargetScope
+        )
 
         if (program.vpn_active) {
             val lbl = Label("Using YesWeHack VPN is required for this program") {
@@ -154,6 +165,15 @@ class BurpConfigPanel(program: Program) : ColumnPanel() {
         }
 
         add(scopes)
+
+        if (program.out_of_scope.isNotEmpty()) {
+            add(scopeBox(
+                "Out of scope",
+                ScopeTable(program.out_of_scope.map { Pair(it, guessRule(it)) }),
+                "Add to exclusions",
+                BurpConfig::addTargetExclude
+            ))
+        }
 
         if (program.user_agent is String) {
             val uaBox = BorderPanel {

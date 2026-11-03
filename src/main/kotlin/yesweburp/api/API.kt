@@ -74,6 +74,15 @@ object API {
         token = null
     }
 
+    fun auth(accessToken: String) {
+        token = null
+        val t = accessToken.trim().removePrefix("Bearer ").trim()
+        if (t.isEmpty() || t.any { it.isWhitespace() || it.isISOControl() }) {
+            throw APIException("Invalid access token")
+        }
+        token = t
+    }
+
     fun auth(email: String, password: String) {
         token = null
         val response: LoginResponse = post("/login", Login(email, password))
@@ -96,7 +105,6 @@ object API {
         var page = 1
         do {
             val response: Page<ShortProgram> = get("/programs?page=$page")
-            // collect instead of data.add(): adding to an ArrayList from a parallel stream is not thread-safe
             data += response.items.parallelStream()
                 .map { get<Program>("/programs/${it.slug}").copy(public = it.public) }
                 .collect(Collectors.toList())

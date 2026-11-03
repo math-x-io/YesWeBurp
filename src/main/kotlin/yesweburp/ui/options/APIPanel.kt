@@ -31,6 +31,9 @@ class APIPanel : GridBagPanel() {
         val otp = TextField {
             isEnabled = auth.requireOTP
         }
+        val token = PasswordField {
+            isEnabled = auth.requireToken
+        }
         val rememberPassword = CheckBox {
             isSelected = Settings.rememberPassword
             isEnabled = auth.requirePassword
@@ -46,6 +49,7 @@ class APIPanel : GridBagPanel() {
                 password.isEnabled = method.requirePassword
                 rememberPassword.isEnabled = method.requirePassword
                 otp.isEnabled = method.requireOTP
+                token.isEnabled = method.requireToken
             }
         }
 
@@ -54,6 +58,7 @@ class APIPanel : GridBagPanel() {
                 val authEmail = email.text
                 val authPassword = password.text
                 val authOTP = otp.text
+                val authToken = token.text
                 val authMethod = AuthMethod.fromValue(authMethodList.selected)
                 Settings.userEmail = authEmail
                 if (rememberPassword.isSelected) {
@@ -78,6 +83,7 @@ class APIPanel : GridBagPanel() {
                             AuthMethod.ANONYMOUS -> API.auth()
                             AuthMethod.EMAIL_PASSWORD -> API.auth(authEmail, authPassword)
                             AuthMethod.EMAIL_PASSWORD_OTP -> API.auth(authEmail, authPassword, authOTP)
+                            AuthMethod.TOKEN -> API.auth(authToken)
                         }
 
                         isEnabled = false
@@ -110,6 +116,7 @@ class APIPanel : GridBagPanel() {
         addSetting("Password", password)
         addSetting("OTP", otp)
         addSetting("Remember password", rememberPassword)
+        addSetting("Access token", token)
         addSetting(null, fetchButton)
         add(
             errorMsg,

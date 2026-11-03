@@ -21,7 +21,6 @@ data class Program(
     val rules_html: String,
     val scopes: List<Scope>,
     val out_of_scope: List<String>,
-    // some program types (e.g. "vdp-in-app") omit these fields in /programs/{slug}
     val public: Boolean = false,
     val qualifying_vulnerability: List<String> = emptyList(),
     val non_qualifying_vulnerability: List<String> = emptyList(),
@@ -47,7 +46,8 @@ data class APIError(val code: Int, val message: String)
 enum class AuthMethod(val label: String) {
     ANONYMOUS("Anonymous"),
     EMAIL_PASSWORD("Email / Password"),
-    EMAIL_PASSWORD_OTP("Email / Password + OTP");
+    EMAIL_PASSWORD_OTP("Email / Password + OTP"),
+    TOKEN("Access token");
 
     val requirePassword: Boolean
         get() {
@@ -61,6 +61,11 @@ enum class AuthMethod(val label: String) {
     val requireOTP: Boolean
         get() {
             return this == EMAIL_PASSWORD_OTP
+        }
+
+    val requireToken: Boolean
+        get() {
+            return this == TOKEN
         }
 
     companion object {

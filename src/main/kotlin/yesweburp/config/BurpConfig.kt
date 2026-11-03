@@ -25,7 +25,8 @@ data class BurpReplaceRule(
 
 data class BurpScopeConfig(
     var advanced_mode: Boolean,
-    var include: List<BurpScopeRule>
+    var include: List<BurpScopeRule>,
+    var exclude: List<BurpScopeRule> = emptyList()
 )
 
 data class BurpProxyConfig(var match_replace_rules: List<BurpReplaceRule>)
@@ -53,12 +54,16 @@ object BurpConfig {
         callbacks.loadConfigFromJson(mapper.writeValueAsString(config))
     }
 
-    fun addTargetScope(scopes: List<BurpScopeRule>){
+    private fun updateTargetScope(update: BurpScopeConfig.() -> Unit){
         val config: BurpConfigResponse = getConfigAsJson("target.scope")
         config.target!!.scope.advanced_mode = true
-        config.target!!.scope.include = (config.target!!.scope.include + scopes).distinct()
+        config.target!!.scope.update()
         setConfigAsJson(config)
     }
+
+    fun addTargetScope(scopes: List<BurpScopeRule>) = updateTargetScope { include = (include + scopes).distinct() }
+
+    fun addTargetExclude(scopes: List<BurpScopeRule>) = updateTargetScope { exclude = (exclude + scopes).distinct() }
 
     fun addMatchReplace(rule: BurpReplaceRule){
         val config: BurpConfigResponse = getConfigAsJson("proxy.match_replace_rules")

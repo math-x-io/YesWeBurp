@@ -47,6 +47,7 @@ The configuration options are available in the tab YesWeHack / Options
 | Password | Password used for connecting to your YesWeHack account. | - |
 | OTP | OTP token used for connecting to your YesWeHack account (ex: 000000). | - |
 | Remember password | Choose to keep a plaintext copy of your password inside Burp settings | - |
+| Access token | Bearer token of a logged-in YesWeHack session, used with the `Access token` authentication. Never saved. | - |
 
 
 ## Changelog
