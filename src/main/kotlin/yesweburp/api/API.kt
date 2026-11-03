@@ -10,6 +10,7 @@ import yesweburp.Events.programsLoaded
 import yesweburp.VERSION
 import yesweburp.callbacks
 import yesweburp.helpers
+import java.util.stream.Collectors
 
 
 object API {
@@ -95,7 +96,10 @@ object API {
         var page = 1
         do {
             val response: Page<ShortProgram> = get("/programs?page=$page")
-            response.items.stream().parallel().forEach { data.add(get("/programs/${it.slug}")) }
+            // collect instead of data.add(): adding to an ArrayList from a parallel stream is not thread-safe
+            data += response.items.parallelStream()
+                .map { get<Program>("/programs/${it.slug}").copy(public = it.public) }
+                .collect(Collectors.toList())
         } while (page++ < response.pagination.nb_pages)
         val programs = data.sortedBy(Program::title)
         programsLoaded.fire(programs)

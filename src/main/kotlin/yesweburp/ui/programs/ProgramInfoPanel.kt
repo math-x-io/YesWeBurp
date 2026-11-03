@@ -103,9 +103,11 @@ class ProgramInfoPanel(program: Program) : BorderPanel() {
             val columns = arrayOf("Scope", "Type", "Low", "Medium", "High", "Critical")
             val data = program.scopes.map { scope ->
                 val rewardGrid = when (scope.asset_value) {
+                    "VERY_LOW" -> program.reward_grid_very_low
                     "LOW" -> program.reward_grid_low
                     "MEDIUM" -> program.reward_grid_medium
                     "HIGH" -> program.reward_grid_high
+                    "CRITICAL" -> program.reward_grid_critical
                     else -> program.reward_grid_default
                 }
 

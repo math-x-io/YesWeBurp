@@ -75,6 +75,7 @@ class APIPanel : GridBagPanel() {
                 GlobalScope.launch {
                     try {
                         when (authMethod) {
+                            AuthMethod.ANONYMOUS -> API.auth()
                             AuthMethod.EMAIL_PASSWORD -> API.auth(authEmail, authPassword)
                             AuthMethod.EMAIL_PASSWORD_OTP -> API.auth(authEmail, authPassword, authOTP)
                         }

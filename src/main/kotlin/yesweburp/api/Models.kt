@@ -7,7 +7,7 @@ data class Page<T>(val items: List<T>, val pagination: Pagination)
 
 data class BusinessUnit(val currency: String)
 data class Scope(val scope: String, val scope_type: String, val asset_value: String)
-data class ShortProgram(val title: String, val slug: String)
+data class ShortProgram(val title: String, val slug: String, val public: Boolean)
 data class RewardGrid(
     val bounty_low: Int? = null,
     val bounty_medium: Int? = null,
@@ -21,17 +21,19 @@ data class Program(
     val rules_html: String,
     val scopes: List<Scope>,
     val out_of_scope: List<String>,
-    val public: Boolean,
-    val qualifying_vulnerability: List<String>,
-    val non_qualifying_vulnerability: List<String>,
+    // some program types (e.g. "vdp-in-app") omit these fields in /programs/{slug}
+    val public: Boolean = false,
+    val qualifying_vulnerability: List<String> = emptyList(),
+    val non_qualifying_vulnerability: List<String> = emptyList(),
     val business_unit: BusinessUnit,
-    val vpn_active: Boolean,
+    val vpn_active: Boolean = false,
     val user_agent: String? = null,
     val reward_grid_default: RewardGrid? = null,
     val reward_grid_very_low: RewardGrid? = null,
     val reward_grid_low: RewardGrid? = null,
     val reward_grid_medium: RewardGrid? = null,
     val reward_grid_high: RewardGrid? = null,
+    val reward_grid_critical: RewardGrid? = null,
     val account_access_html: String? = null,
 )
 
